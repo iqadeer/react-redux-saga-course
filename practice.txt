@@ -44,6 +44,14 @@ open getStore.js and add the following code before the return statement.
 ####################################################################
 				Creating generators
 ####################################################################
+
+function getValue(a,b){  const value = a + b;  return a + b }
+let data = getValue(1, 2);
+
+function* getValue(a,b){  const value = a + b;  return a + b;}
+let gen = getValue(1,2);
+let data = gen.next().value;
+
 var generator = function*() { return 5}
 
 var gen = generator();
