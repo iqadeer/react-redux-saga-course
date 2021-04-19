@@ -1,0 +1,861 @@
+####################################################################
+				Configure and install saga middleware
+####################################################################
+
+npm i --save redux-saga 
+open getStore.js
+Add import
+  import createSagaMiddleware from "redux-saga";
+Add these 2 lines.
+
+  const sagaMiddleware = createSagaMiddleware();
+  const middleWares = [sagaMiddleware, thunk];
+  
+####################################################################
+				Create first saga
+####################################################################
+1 create a file currentUserSaga.js
+Add the following code.
+
+import { delay } from "redux-saga/effects";
+
+export function* currentUserSaga() {
+  while (true) {
+    yield delay(1000);
+    yield console.info("User saga loops");
+  }
+}
+
+2 Create a file called root-saga.js inside the sagas directory and add following code
+
+import { all } from "redux-saga/effects";
+import { currentUserSaga } from "./currentUserSaga";
+
+export default function* rootSaga() {
+  yield all([currentUserSaga()]);
+}
+
+
+3 Note: sagas can only be initialized after the middleware is added to the store.
+
+open getStore.js and add the following code before the return statement.
+    sagaMiddleware.run(rootSaga);
+
+####################################################################
+				Creating generators
+####################################################################
+var generator = function*() { return 5}
+
+var gen = generator();
+gen.next();
+
+var generator = function*() { 
+yield 1;
+yield 2;
+yield 3;
+yield 4;
+return 5
+}
+
+var gen = generator();
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+
+
+var generator = function*() { 
+yield 1;
+yield 2;
+yield 3;
+yield "Hello";
+yield "World";
+yield [1, 2, 3];
+yield ["a", "B", "C"];
+return 5
+}
+
+var gen = generator();
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+
+
+var delayGenerator = function*() {
+var result = yield new Promise(r => setTimeout(r(2), 1000));
+return 42 + result;
+}
+
+var delayGen = delayGenerator();
+delayGen.next().value.then(v => {console.log(delayGen.next(2).value)})
+####################################################################
+				wrapping generators with redux saga
+####################################################################
+wrapping generators
+
+var getData = function*() {
+	const data = yield apiService.get('/apiurl');
+	return data + 1;
+}
+
+var getDataGen = getData();
+var promise = getDataGen().next().value;
+promise.then(data => {
+	var value = gen.next(data).value;
+});
+
+var delayGenerator = function*(){
+	const data1 = yield delay(1000, 2);
+	console.info("data 1");
+	const data2 = yield delay(1000, 2);
+	console.info("data 2");
+	const data3 = yield delay(1000, 2);
+	console.info("data 3");
+	console.info(data1, data2, data3);
+	console.info(data1 + data2 + data3);
+	return data1 + data2 + data3;
+}
+var obj = delayGenerator();
+obj.next().value.then(
+	d1 => obj.next(d1).value.then(
+	d2 => obj.next(d2).value.then(
+	d3 => console.log(obj.next(d3).value))));  
+obj.next();
+
+var delayGenerator = function*(){
+	const data1 = yield delay(1000, 1);
+	console.info("data 1");
+	const data2 = yield delay(1000, 2);
+	console.info("data 2");
+	const data3 = yield delay(1000, 3);
+	console.info("data 3");
+	console.info(data1, data2, data3);
+	return data1 + data2 + data3;
+}
+
+var obj = delayGenerator();
+obj.next().value;
+obj.next().value;
+obj.next().value;
+
+run(delayGenerator);
+
+
+####################################################################
+				Effects for redux saga
+####################################################################
+Effects
+
+utility method provided Redux saga, returns an object containing instructions for redux saga.
+
+
+1. Thread management, action creation, data seeding, flow control.
+
+####################################################################
+				Take Effect for redux saga
+####################################################################
+Take pauses between concurrent lines of code. code resumes when specified action is dispatched.
+	properties of actions are passed as yielded variables
+
+effects.take("My_Acttion")
+
+let mySaga = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("SET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga);
+dispatch({type: "SET_STATE", payload: {value: 42}});
+
+let mySaga2 = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("GET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga2);
+dispatch({type: "GET_STATE", payload: {value: 42}});
+
+####################################################################
+				put Effect for redux saga
+####################################################################
+
+put: Dispatches and action immidiately. Similar to calling dispatch
+
+let mySaga2 = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("GET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga2);
+
+let putSaga = function*() {
+	yield effects.put(dispatch({type: "GET_STATE", payload: {value: 42}}));
+}
+
+run(putSaga)
+
+####################################################################
+				Call Effect for redux saga
+####################################################################
+
+call: Similar to calling a function directly. calls the specified method. Used for testing.
+
+let fn = () => {console.info("called the function")}
+let saga = function*() {yield fn();}
+run(saga);
+
+let fn = () => {console.info("called the function")}
+let callSaga = function*() {yield effects.call(fn);}
+run(callSaga);
+
+####################################################################
+				Implementing take, put and call in the app
+####################################################################
+1.
+open current user saga and replace the code with the code below
+
+import { take, put, call, apply } from "redux-saga/effects";
+import fetch from "isomorphic-fetch";
+import { GET_CURRENT_USER_INFO, setCurrentUser } from "./../actions";
+
+export function* currentUserSaga() {
+  const { id } = yield take(GET_CURRENT_USER_INFO);
+  const response = yield call(fetch, `http://localhost:8081/user/${id}`);
+  const data = yield apply(response, response.json);
+  console.info(data);
+  console.info("ID", id);
+  yield put(setCurrentUser(data));
+}
+
+####################################################################
+				Fork Effect for redux saga
+####################################################################
+
+Fork: Works like call, invokes the specified method but you can not access yielded variables, 
+	caller continues without pausing execution.
+	IF parent process errors or cancelled, all fork processes are cancelled
+	Finally block of forked method is invoked during cancellation, so can be used to catch errors.
+	
+let fn = function*() {
+	while(true) {
+	 console.log("FN!");
+	 yield delay(1000);
+	}
+}	
+	
+let forkSaga = function*(){
+	while(true) {
+		yield effects.fork(fn);
+		yield delay(500);
+	}
+}	
+
+run(forkSaga)
+  We can use fork to get carts in the item for a customer.
+
+####################################################################
+				Implementing fork in the application.
+####################################################################
+1. Can be used to get the products in the cart in parallel.
+    create fetchCartSaga.js in sagas folder
+	Add following code
+	
+import { take, put, call, apply } from "redux-saga/effects";
+import fetch from "isomorphic-fetch";
+import { SET_CURRENT_USER, setCartItems } from "../actions";
+
+export function* fetchCartSaga() {
+  const {
+    user: { id },
+  } = yield take(SET_CURRENT_USER);
+  const response = yield call(fetch, `http://localhost:8081/cart/${id}`);
+  const { items } = yield apply(response, response.json);
+  yield put(setCartItems(items));
+  console.log("items", items);
+}
+
+2. Create file itemDetailsSaga.js in sagas and paste the following code.
+
+import { take, fork, put, call, all } from "redux-saga/effects";
+import fetch from "isomorphic-fetch";
+
+import { SET_CART_ITEMS, setItemDetails } from "../actions";
+
+export function* loadItemDetails(item) {
+  console.info("Item?", item);
+  const { id } = item;
+  const response = yield call(fetch, `http://localhost:8081/items/${id}`);
+  const data = yield response.json();
+  const info = data[0];
+  yield put(setItemDetails(info));
+}
+export function* itemDetailsSaga() {
+  const { items } = yield take(SET_CART_ITEMS);
+  yield all(items.map((item) => fork(loadItemDetails, item)));
+}
+
+####################################################################
+				TakeEvery effect
+####################################################################
+
+TakeEvery: Works like take, except forks the specified method every time specified action is dipatched
+	code execution resumes immediately in main thread.
+
+  
+let process = function*() {
+	while(true) {
+		console.info("process loop.");
+		yield delay(1000);
+	}
+}
+
+let takeEverySaga = function*() {
+	yield effects.takeEvery("START_PROCESS", process);
+	console.log("Saga got to the end")
+}
+
+run(takeEverySaga);
+
+dispatch({type: "START_PROCESS", payload:{value: 43}});
+
+####################################################################
+				Cancel and cancelled
+####################################################################
+
+cancel: Stops a forked process, stoped process will be cut off at most recent yield
+	finally is invoked in forked process
+	
+Cancelled: Works in conjuction with cancel. Returns true if forked process is cancelled.
+  Used in finally block to determine if cancellation(not error) is cause of termination.
+	so you can repond to cancellation and errors separately.
+	
+let process = function*() {
+	try{
+		while(true) {
+			console.info("process loop.");
+			yield delay(500);
+		}
+	} finally {
+		const cancelled = yield effects.cancelled();
+		console.info("cancelled?", cancelled);
+		
+		console.info("cancelled?", yield effects.cancelled());
+
+	
+	}
+}	
+	
+let forkSaga = function*(){
+		let forked = yield effects.fork(process);
+		yield delay(5000);
+		yield effects.cancel(forked)
+		console.info("Done!");
+}	
+
+run(forkSaga)
+
+####################################################################
+				Take Latest
+####################################################################
+
+TakeLatest: Combination of fork, takeEvery, and cancel
+	Forks child process each time specified action is dispatched, 
+		while keeping exactly one instance of the child process
+	
+let process = function*() {
+	let timesLooped = 0;
+	while(true) {
+		console.info(`process looped ${timesLooped++} times`);
+		yield delay(1000);
+	}
+}	
+	
+let takeLatestSaga = function*(){
+		yield effects.takeLatest("START_PROCESS", process);
+		console.info("Done");
+}	
+
+run(takeLatestSaga);
+
+dispatch({type: "START_PROCESS", payload: {value: 44}});
+
+####################################################################
+				Take Latest in the app
+####################################################################
+1.   Add itemQuantitySaga.js in sagas and paste the following code.
+
+import { takeLatest, select, put, call } from "redux-saga/effects";
+import fetch from "isomorphic-fetch";
+
+import {
+  INCREASE_ITEM_QUANTITY,
+  DECREASE_ITEM_QUANTITY,
+  setItemQuantityFetchStatus,
+  decreaseItemQuantity,
+  FETCHING,
+  FETCHED,
+} from "../actions";
+
+import { currentUserSelector } from "../selectors";
+
+export function* handleIncreaseItemQuantity({ id }) {
+  yield put(setItemQuantityFetchStatus(FETCHING));
+  const user = yield select(currentUserSelector);
+  const response = yield call(
+    fetch,
+    `http://localhost:8081/cart/add/${user.get("id")}/${id}`
+  );
+  console.info("Got response,", response);
+
+  if (response.status !== 200) {
+    yield put(decreaseItemQuantity(id, true));
+    alert(
+      "Sorry, there weren't enough items in stock to complete your request."
+    );
+  }
+
+  yield put(setItemQuantityFetchStatus(FETCHED));
+}
+
+export function* handleDecreaseItemQuantity({ id, local }) {
+  if (local) {
+    return;
+  }
+  yield put(setItemQuantityFetchStatus(FETCHING));
+  const user = yield select(currentUserSelector);
+  const response = yield call(
+    fetch,
+    `http://localhost:8081/cart/remove/${user.get("id")}/${id}`
+  );
+  if (response.status !== 200) {
+    console.warn("Received non-200 status:: ", response);
+  }
+  yield put(setItemQuantityFetchStatus(FETCHED));
+}
+
+export function* itemQuantitySaga() {
+  console.log("item quanity saga");
+  yield takeLatest(DECREASE_ITEM_QUANTITY, handleDecreaseItemQuantity);
+  yield takeLatest(INCREASE_ITEM_QUANTITY, handleIncreaseItemQuantity);
+}
+
+
+####################################################################
+				Spawn effect
+####################################################################
+
+SPAWN: same as fork but spawned process runs on its own, if the parent process errors or cancelled,
+	spawned process continues to run.
+	
+let process = function*() {
+	try{
+		while(true) {
+			console.info("process loop.");
+			yield delay(500);
+		}
+	} finally {
+		const cancelled = yield effects.cancelled();
+		console.info("cancelled?", cancelled);
+		
+		console.info("cancelled?", yield effects.cancelled());
+	}
+}	
+	
+let forkSaga = function*(){
+		let forked = yield effects.spawn(process);
+		yield delay(2000);
+		throw new Error();
+}	
+
+run(forkSaga)
+
+####################################################################
+				All effect
+####################################################################	
+	
+ALL: combines numerous take statements into one, code execution resumes when all actions have been dispatched
+		in any order.
+	
+####################################################################
+				Implementing all in app
+####################################################################
+
+1. create itemPriceSaga.js in sagas and add the following code.
+
+import { take, all, fork, put, call } from "redux-saga/effects";
+import fetch from "isomorphic-fetch";
+
+import {
+  SET_CART_ITEMS,
+  SET_CURRENT_USER,
+  SET_ITEM_DETAILS,
+  setItemPrice,
+} from "../actions";
+
+function* fetchItemPrice(id, currency) {
+  const response = yield fetch(
+    `http://localhost:8081/prices/${currency}/${id}`
+  );
+  const json = yield response.json();
+  const price = json[0].price;
+  yield put(setItemPrice(id, price));
+}
+export function* itemPriceSaga() {
+  const [{ user }, { items }] = yield all([
+    take(SET_CURRENT_USER),
+    take(SET_CART_ITEMS),
+    take(SET_ITEM_DETAILS),
+  ]);
+  yield all(items.map((item) => fork(fetchItemPrice, item.id, user.country)));
+}
+
+####################################################################
+				Action channel
+####################################################################	
+ActionChannel: Records and store the actions
+
+ let updateSaga = function*() {
+	let chan = yield actionChannel("UPDATE");
+	while(true) {
+		yield effects.take(chan);
+		console.info("update logged");
+		yield delay(500);
+	}
+ }
+ 
+run(updateSaga);
+
+dispatch({type: "UPDATE"})
+
+
+ let updateSaga = function*() {
+	// let chan = yield actionChannel("UPDATE");
+	while(true) {
+		yield effects.take("UPDATE");
+		console.info("update logged");
+		yield delay(500);
+	}
+ }
+ 
+run(updateSaga);
+
+dispatch({type: "UPDATE"})
+
+####################################################################
+				Implement event Channel
+####################################################################	
+
+1. Add customerServicesAvailabilitySaga.js in sagas and paste the code bleow
+
+import { take, put } from 'redux-saga/effects';
+import { eventChannel } from 'redux-saga';
+import { connect } from '../createSocketConnection';
+import {
+    setCustomerServiceAvailability
+} from '../actions';
+
+export function* customerServiceAvailabilitySaga() {
+    const socket = connect();
+    const chan = new eventChannel(emit=>{
+        const enableSupportMessage = ()=>{
+            emit(true)
+        };
+
+        const disableSupportMessage = ()=>{
+            emit(false)
+        };
+
+        socket.on(`SUPPORT_AVAILABLE`,enableSupportMessage);
+        socket.on(`SUPPORT_NOT_AVAILABLE`,disableSupportMessage);
+
+        return ()=>{
+
+        }
+    });
+
+    while (true) {
+        let supportAvailable = yield take(chan);
+        yield put(setCustomerServiceAvailability(supportAvailable));
+    }
+}
+2. Add and run the saga in root saga.
+
+####################################################################
+				Implement shipping saga
+####################################################################
+
+1. Add shippingSaga.js in sagas and paste the code bleow
+
+import { select, put, takeLatest } from 'redux-saga/effects'
+import fetch from 'isomorphic-fetch';
+
+import {
+    SET_CART_ITEMS,
+    INCREASE_ITEM_QUANTITY,
+    DECREASE_ITEM_QUANTITY,
+    FETCHED,
+    FETCHING,
+    setShippingFetchStatus,
+    setShippingCost
+} from './../actions'
+
+import {
+    cartItemsSelector
+} from '../selectors'
+
+function* shipping() {
+    yield put(setShippingFetchStatus(FETCHING));
+    const items = yield select(cartItemsSelector);
+
+    const itemRequestString = items.reduce((string, item) => {
+        for (let i = 0; i < item.get(`quantity`); i++) {
+            string += item.get(`id`) + ",";
+        }
+        return string;
+    }, "").replace(/,\s*$/, '');
+
+    console.info("Made item request string", itemRequestString);
+
+    const response = yield fetch(`http://localhost:8081/shipping/${itemRequestString}`);
+    const {total} = yield response.json();
+    yield put(setShippingCost(total));
+    yield put(setShippingFetchStatus(FETCHED));
+}
+
+export function* shippingSaga(){
+    yield takeLatest([SET_CART_ITEMS, INCREASE_ITEM_QUANTITY, DECREASE_ITEM_QUANTITY],shipping);
+}
+
+2. Add and run the saga in root saga.
+
+####################################################################
+				Implement tax rate saga
+####################################################################
+1. Add taxRateSaga.js in sagas and paste the code bleow
+
+import { take, put } from 'redux-saga/effects'
+import fetch from 'isomorphic-fetch';
+
+import {
+    SET_CURRENT_USER,
+    setTaxRate
+} from './../actions'
+
+export function* taxRateSaga(){
+    const { user } = yield take(SET_CURRENT_USER);
+    const { country } = user;
+    const response = yield fetch(`http://localhost:8081/tax/${country}`);
+    const { rate } = yield response.json();
+    yield put(setTaxRate(rate));
+}
+
+2. Add and run the saga in root saga.
+
+####################################################################
+				Implement checkout availability saga
+####################################################################
+1. Add checkoutAvailabilitySaga.js in sagas and paste the code bleow
+
+import { take, actionChannel, put } from 'redux-saga/effects';
+
+import {
+    SET_SHIPPING_FETCH_STATUS,
+    setCanCheckOut,
+    FETCHED
+} from './../actions';
+
+export function* checkoutAvailabilitySaga(){
+    const checkoutAvailabilityChannel = yield actionChannel(SET_SHIPPING_FETCH_STATUS);
+    while (true) {
+        const { status } = yield take(checkoutAvailabilityChannel);
+        yield put(setCanCheckOut(status === FETCHED));
+    }
+}
+
+2. Add and run the saga in root saga.
+
+####################################################################
+				Implement checkOut saga
+####################################################################
+1. Add checkoutySaga.js in sagas and paste the code bleow
+import { take, call, put, select } from 'redux-saga/effects'
+import fetch from 'isomorphic-fetch';
+
+import {
+    TOGGLE_CHECKING_OUT,
+    QUANTITY_VERIFICATION_CHECKOUT_PHASE,
+    CREDIT_VALIDATION_CHECKOUT_PHASE,
+    ERROR_CHECKOUT_PHASE,
+    PURCHASE_FINALIZATION_CHECKOUT_PHASE,
+    SUCCESS_CHECKOUT_PHASE,
+    setCheckoutPhase,
+} from './../actions'
+
+import {
+    currentUserSelector
+} from '../selectors'
+
+export function* validateCart(user){
+    const response = yield fetch(`http://localhost:8081/cart/validate/${user.get(`id`)}`);
+    const { validated } = yield response.json();
+    return validated;
+}
+
+export function * validateCreditCard(user) {
+    const response = yield fetch(`http://localhost:8081/card/validate/${user.get(`id`)}`);
+    const { validated } = yield response.json();
+    return validated;
+}
+
+export function * executePurchase(user) {
+    const response = yield fetch(`http://localhost:8081/card/charge/${user.get(`id`)}`);
+    const { success } = yield response.json();
+    return success;
+}
+
+export function* checkout(){
+    const user = yield select(currentUserSelector);
+    yield put(setCheckoutPhase(QUANTITY_VERIFICATION_CHECKOUT_PHASE));
+    const cartValidated = yield call(validateCart,user);
+    if (!cartValidated) {
+        yield put(setCheckoutPhase(ERROR_CHECKOUT_PHASE));
+        return;
+    }
+    console.info("Validated cart");
+
+    yield put(setCheckoutPhase(CREDIT_VALIDATION_CHECKOUT_PHASE));
+    const creditCardValidated = yield call(validateCreditCard,user);
+    if (!creditCardValidated) {
+        yield put(setCheckoutPhase(ERROR_CHECKOUT_PHASE));
+        return;
+    }
+
+    yield put(setCheckoutPhase(PURCHASE_FINALIZATION_CHECKOUT_PHASE));
+    const purchaseSuccessful = yield call(executePurchase,user);
+
+    if (!purchaseSuccessful) {
+        yield put(setCheckoutPhase(ERROR_CHECKOUT_PHASE));
+        return;
+    }
+
+    yield put(setCheckoutPhase(SUCCESS_CHECKOUT_PHASE));
+}
+
+export function* checkoutSaga() {
+    while (true) {
+        const isCheckingOut = yield take(TOGGLE_CHECKING_OUT);
+        if (isCheckingOut) {
+            yield call(checkout);
+        }
+    }
+}
+
+2. Add and run the saga in root saga.
+
+
+####################################################################
+				Testing redux sagas
+####################################################################
+
+1. npm install core-js --save-dev
+
+2. change .bablerc to use corejs version 3
+
+
+####################################################################
+				Testing currentUserSaga 
+####################################################################
+
+1. Create the spec file named currentUserSaga.spec.js and add the code below
+
+import fetch from 'isomorphic-fetch';
+import { take, call, put, apply } from 'redux-saga/effects'
+
+import {
+    GET_CURRENT_USER_INFO,
+    setCurrentUser
+} from './../actions'
+
+import { currentUserSaga } from './currentUserSaga'
+
+describe("The current user saga",()=>{
+    test("It fetches and puts the current user's data",()=>{
+        const id = `NCC1701`;
+        const user = {name:"Jean Luc"};
+        const json = ()=>{};
+        const response = {json};
+        const gen = currentUserSaga();
+
+        expect(gen.next().value).toEqual(take(GET_CURRENT_USER_INFO));
+        expect(gen.next({id}).value).toEqual(call(fetch,`http://localhost:8081/user/${id}`));
+        expect(gen.next(response).value).toEqual(apply(response,json));
+        expect(gen.next(user).value).toEqual(put(setCurrentUser(user)));
+
+    });
+});
+
+####################################################################
+				Testing itemQuantitySaga
+####################################################################
+
+Note: only testing handleIncreaseItemQuantity generator.
+
+1. Create the spec file named itemQuantitySaga.spec.js and add the code below
+
+import fetch from 'isomorphic-fetch';
+import { call, put, takeLatest, select } from 'redux-saga/effects';
+
+import {
+    handleIncreaseItemQuantity
+} from './itemQuantitySaga'
+
+import {
+    INCREASE_ITEM_QUANTITY,
+    DECREASE_ITEM_QUANTITY,
+    setItemQuantityFetchStatus,
+    decreaseItemQuantity,
+    increaseItemQuantity,
+    FETCHING,
+    FETCHED
+} from './../actions';
+
+import { fromJS } from 'immutable'
+
+import { currentUserSelector } from '../selectors'
+
+describe("item quantity saga",()=>{
+    let item;
+    let user;
+    beforeEach(()=>{
+        item = {id:12345};
+        user = fromJS({id:"ABCDE"});
+    });
+
+    describe("handle increase item quantity",()=>{
+       let gen;
+       beforeEach(()=>{
+           gen = handleIncreaseItemQuantity(item);
+           expect(gen.next().value).toEqual(put(setItemQuantityFetchStatus(FETCHING)));
+           expect(gen.next().value).toEqual(select(currentUserSelector));
+           expect(gen.next(user).value).toEqual(call(fetch,`http://localhost:8081/cart/add/ABCDE/12345`));
+       });
+
+       test("increasing quantity successfully",()=>{
+           expect(gen.next({status:200}).value).toEqual(put(setItemQuantityFetchStatus(FETCHED)));
+       })
+
+       test("increasing quantity unsucessfully",()=>{
+           expect(gen.next({status:500}).value).toEqual(put(decreaseItemQuantity(item.id, true)));
+           expect(gen.next().value).toEqual(put(setItemQuantityFetchStatus(FETCHED)));
+       });
+    });
+});

@@ -1,0 +1,67 @@
+{
+  "name": "react-redux-starter",
+  "version": "1.0.0",
+  "main": "index.js",
+  "keywords": [],
+  "author": "IMRAN QADEER",
+  "description": "",
+  "license": "ISC",
+  "scripts": {
+    "test": "jest",
+    "start": "babel-node server/server.js"
+  },
+  "dependencies": {
+    "@testing-library/jest-dom": "^4.2.4",
+    "@testing-library/react": "^9.3.2",
+    "@testing-library/user-event": "^7.1.2",
+    "chance": "^1.1.7",
+    "classnames": "^2.3.1",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "immutable": "^4.0.0-rc.12",
+    "isomorphic-fetch": "^3.0.0",
+    "lodash": "^4.17.21",
+    "query-string": "^4.3.4",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-redux": "^7.2.3",
+    "react-scripts": "3.3.0",
+    "redux": "^4.0.5",
+    "redux-logger": "^3.0.6",
+    "redux-thunk": "^2.3.0",
+    "reselect": "^4.0.0",
+    "socket.io": "^4.0.1",
+  },
+  "devDependencies": {
+    "@babel/core": "^7.7.4",
+    "@babel/node": "^7.7.4",
+    "@babel/plugin-proposal-object-rest-spread": "^7.7.4",
+    "@babel/plugin-transform-regenerator": "^7.7.4",
+    "@babel/plugin-transform-runtime": "^7.7.4",
+    "@babel/polyfill": "^7.7.0",
+    "@babel/preset-env": "^7.7.4",
+    "@babel/preset-react": "^7.7.4",
+    "babel-loader": "^8.0.6",
+    "webpack": "^4.41.2",
+    "webpack-dev-middleware": "^3.7.2",
+    "webpack-hot-middleware": "^2.25.0"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "jest": {
+    "setupFiles": ["<rootDir>/setup-tests.js"]
+  }
+}

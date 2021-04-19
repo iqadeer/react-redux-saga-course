@@ -1,0 +1,277 @@
+var generator = function*() { return 5}
+
+var gen = generator();
+gen.next();
+
+var generator = function*() { 
+yield 1;
+yield 2;
+yield 3;
+yield 4;
+return 5
+}
+
+var gen = generator();
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+
+
+var generator = function*() { 
+yield 1;
+yield 2;
+yield 3;
+yield "Hello";
+yield "World";
+yield [1, 2, 3];
+yield ["a", "B", "C"];
+return 5
+}
+
+var gen = generator();
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+gen.next().value;
+
+
+var delayGenerator = function*() {
+var result = yield new Promise(r => setTimeout(r(2), 1000));
+return 42 + result;
+}
+
+var delayGen = delayGenerator();
+delayGen.next().value.then(v => {console.log(delayGen.next(2).value)})
+
+wrapping generators
+
+var getData = function*() {
+	const data = yield apiService.get('/apiurl');
+	return data + 1;
+}
+
+var getDataGen = getData();
+var promise = getDataGen().next().value;
+promise.then(data => {
+	var value = gen.next(data).value;
+});
+
+
+
+var delayGenerator = function*(){
+	const data1 = yield new Promise(r => setTimeout(r(1), 1000));
+	console.info("data 1");
+	const data2 = yield new Promise(r => setTimeout(r(2), 1000));
+	console.info("data 2");
+	const data3 = yield new Promise(r => setTimeout(r(3), 1000));
+	console.info("data 3");
+	console.info(data1, data2, data3);
+	return data1 + data2 + data3;
+}
+var obj = delayGenerator();
+obj.next().value.then(d1 => obj.next(d1).value.then(d2 => obj.next(d2).value.then(d3 => console.log(obj.next(d3).value))));  
+obj.next();
+
+var delayGenerator = function*(){
+	const data1 = yield delay(1000, 1);
+	console.info("data 1");
+	const data2 = yield delay(1000, 2);
+	console.info("data 2");
+	const data3 = yield delay(1000, 3);
+	console.info("data 3");
+	console.info(data1, data2, data3);
+	return data1 + data2 + data3;
+}
+
+var obj = delayGenerator();
+obj.next().value;
+obj.next().value;
+obj.next().value;
+
+run(delayGenerator);
+
+Effects
+
+utility method provided Redux saga, returns an object containing instructions for redux saga.
+1. Thread management, action creation, data seeding, flow control.
+
+Take pauses between concurrent lines of code. code resumes when specified action is dispatched.
+	properties of actions are passed as yielded variables
+
+effects.take("My_Acttion")
+
+let mySaga = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("SET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga);
+dispatch({type: "SET_STATE", payload: {value: 42}});
+
+let mySaga2 = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("GET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga2);
+dispatch({type: "GET_STATE", payload: {value: 42}});
+
+put: Dispatches and action immidiately. Similar to calling dispatch
+
+let mySaga2 = function*() {
+	console.info("Saga begins");
+	const state = yield effects.take("GET_STATE");
+	console.info("Got state...", state);
+}
+
+run(mySaga2);
+
+let putSaga = function*() {
+	yield effects.put(dispatch({type: "GET_STATE", payload: {value: 42}}));
+}
+
+run(putSaga)
+
+
+call: Similar to calling a function directly. calls the specified method. Used for testing.
+
+let fn = () => {console.info("called the function")}
+let saga = function*() {yield fn();}
+run(saga);
+
+let fn = () => {console.info("called the function")}
+let callSaga = function*() {yield effects.call(fn);}
+run(callSaga);
+
+
+Fork: Works like call, invokes the specified method but you can not access yielded variables, 
+	caller continues without pausing execution.
+	IF parent process errors or cancelled, all fork processes are cancelled
+	Finally block of forked method is invoked during cancellation, so can be used to catch errors.
+	
+let fn = function*() {
+	while(true) {
+	 console.log("FN!");
+	 yield delay(1000);
+	}
+}	
+	
+let forkSaga = function*(){
+	while(true) {
+		yield effects.fork(fn);
+		yield delay(500);
+	}
+}	
+
+run(forkSaga)
+  We can use fork to get carts in the item for a customer.
+
+
+TakeEvery: Works like take, except forks the specified method every time specified action is dipatched
+	code execution resumes immediately in main thread.
+
+  
+let process = function*() {
+	while(true) {
+		console.info("process loop.");
+		yield delay(1000);
+	}
+}
+
+let takeEverySaga = function*() {
+	yield effects.takeEvery("START_PROCESS", process);
+	console.log("Saga got to the end")
+}
+
+run(takeEverySaga);
+
+dispatch({type: "START_PROCESS", payload:{value: 43}});
+
+cancel: Stops a forked process, stoped process will be cut off at most recent yield
+	finally is invoked in forked process
+	
+Cancelled: Works in conjuction with cancel. Returns true if forked process is cancelled.
+  Used in finally block to determine if cancellation(not error) is cause of termination.
+	so you can repond to cancellation and errors separately.
+	
+let process = function*() {
+	try{
+		while(true) {
+			console.info("process loop.");
+			yield delay(500);
+		}
+	} finally {
+		const cancelled = yield effects.cancelled();
+		console.info("cancelled?", cancelled);
+		
+		console.info("cancelled?", yield effects.cancelled());
+
+	
+	}
+}	
+	
+let forkSaga = function*(){
+		let forked = yield effects.fork(process);
+		yield delay(5000);
+		yield effects.cancel(forked)
+		console.info("Done!");
+}	
+
+
+TakeLatest: Combination of fork, takeEvery, and cancel
+	Forks child process each time specified action is dispatched, while keeping exactly one instance of the child process
+	
+let process = function*() {
+	let timesLooped = 0;
+	while(true) {
+		console.info(`process looped ${timesLooped++} times`);
+		yield delay(1000);
+	}
+}	
+	
+let takeLatestSaga = function*(){
+		yield effects.takeLatest("START_PROCESS", process);
+		console.info("Done");
+}	
+
+run(takeLatestSaga);
+
+dispatch({type: "START_PROCESS", payload: {value: 44}});
+
+SPAWN: same as fork but spawned process runs on its own, if the parent process errors or cancelled,
+	spawned process continues to run.
+	
+ALL: combines numerous take statements into one, code execution resumes when all actions have been dispatched
+		in any order.
+	
+
+ActionChannel: Records and store the actions
+
+ let updateSaga = function*() {
+	let chan = yield actionChannel("UPDATE");
+	while(true) {
+		yield effects.take(chan);
+		console.info("update logged");
+		yield delay(500);
+	}
+ }
+
+run(updateSaga);
+
+dispatch({type: "UPDATE"})
+
+
+FWGGQ-JXDD6-Y9779-TTXQF-K46FZ
+
+Original https://miro.com/app/board/o9J_lRx91Cg=/
+Alexandra https://miro.com/app/board/o9J_lQe2nOY=/
+
+Aase Tangaa
